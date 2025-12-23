@@ -1,4 +1,4 @@
-# SLR Tracker
+# SLR Helper
 
 A lightweight, self-hostable web app to manage a **Systematic Literature Review (SLR)** using a structured protocol and an extraction table—without the formatting pain of Excel/Word.
 
@@ -92,7 +92,7 @@ cd slr-tracker
 ### 2) Install dependencies
 
 ```bash
-pnpm install
+npm install
 ```
 
 ### 3) Configure environment
@@ -112,14 +112,14 @@ DATABASE_URL="file:./dev.db"
 ### 4) Setup database
 
 ```bash
-pnpm prisma migrate dev
-pnpm prisma generate
+npx prisma migrate dev
+npx prisma generate
 ```
 
 ### 5) Run dev server
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 Open:
