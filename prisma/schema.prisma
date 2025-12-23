@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model SlrProject {
+  id               String            @id @default(cuid())
+  name             String
+  description      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  protocol         SlrProtocol?
+  studies          SlrStudy[]
+  qualityCriteria QualityCriterion[]
+}
+
+model SlrProtocol {
+  id                            String                 @id @default(cuid())
+  projectId                     String                 @unique
+  project                       SlrProject             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  protocolTitle                  String
+  background                    String?
+  objective                     String?
+  reviewQuestionFull            String?
+  picoPopulation                String?
+  picoIntervention              String?
+  picoComparison                String?
+  picoOutcome                   String?
+  searchStrategy                String?
+  identifyingOtherSources       String?
+  additionalLimits               String?
+  studyQualityAssessmentPlan    String?
+  dataExtractionAndSynthesis     String?
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  databases                     ProtocolDatabase[]
+  searchTerms                   ProtocolSearchTerm[]
+}
+
+model ProtocolDatabase {
+  id         String      @id @default(cuid())
+  protocolId String
+  protocol   SlrProtocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  name       String
+  notes      String?
+}
+
+model ProtocolSearchTerm {
+  id          String      @id @default(cuid())
+  protocolId  String
+  protocol    SlrProtocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+  groupName   String      // e.g., ITS / ML / outcome
+  queryString String      // boolean query
+}
+
+model SlrStudy {
+  id                String              @id @default(cuid())
+  projectId         String
+  project           SlrProject          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  paperKey          String              // e.g., P001
+  title             String
+  authors           String?
+  year              Int
+  venue             String?
+  doi               String?
+  url               String?
+  keywords          String?
+  researchType      String?             // System/Experiment/Survey/Framework
+  domain            String?             // PM/LLM/RAG/etc
+  problemStatement  String?
+  proposedSolution  String?
+  keyTechniques     String?
+  dataInputUsed     String?
+  outputArtifact    String?
+  evaluationMethod  String?
+  metricsResults    String?
+  strengths         String?
+  limitations       String?
+  gapNotes          String?
+  adoptionForThesis String?
+  status            String              @default("TO_READ") // TO_READ/READING/EXTRACTED/INCLUDED/EXCLUDED
+  exclusionReason   String?
+  relevanceScore    Int?                // 1..5 optional
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  qualityScores     StudyQualityScore[]
+  tags              StudyTag[]
+}
+
+model QualityCriterion {
+  id          String              @id @default(cuid())
+  projectId   String
+  project     SlrProject          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code        String              // Q1, Q2...
+  name        String
+  description String?
+  weight      Int?
+  scores      StudyQualityScore[]
+}
+
+model StudyQualityScore {
+  id          String           @id @default(cuid())
+  studyId     String
+  study       SlrStudy         @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  criterionId String
+  criterion   QualityCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  score       Int              // 0..2 or 1..5
+  notes       String?
+}
+
+model Tag {
+  id      String     @id @default(cuid())
+  name    String     @unique
+  slug    String     @unique
+  studies StudyTag[]
+}
+
+model StudyTag {
+  studyId String
+  study   SlrStudy @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  tagId   String
+  tag     Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([studyId, tagId])
+}
