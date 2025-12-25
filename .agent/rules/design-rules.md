@@ -1,6 +1,6 @@
 ---
 trigger: model_decision
-description: ALWAYS follow these UI/UX Coding Rules (Frontend Only) for every request that involves creating, modifying, or reviewing any frontend, UI design, or UX design for this project. This includes: pages, layouts, components, styling, responsive behavior, 
+description: ALWAYS follow these UI/UX Coding Rules (Frontend Only) for every request that involves creating, modifying, or reviewing any frontend, UI design, or UX design for this project.
 ---
 
 # SLR Tracker — UI/UX Coding Rules (Frontend Only)
@@ -61,7 +61,7 @@ Rules:
 - Avoid using many colors for categories/tags; use text + subtle badges.
 
 ### 3.2 Typography
-- Use the library’s default clean sans font or Poppins if already set globally.
+- Use the library’s default Poppins.
 - Keep it simple:
   - Page title (H1)
   - Section title (H2)

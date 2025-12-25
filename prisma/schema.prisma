@@ -71,7 +71,9 @@ model SlrStudy {
   venue             String?
   doi               String?
   url               String?
+  pdfUrl            String?             // Link to PDF document
   keywords          String?
+  abstract          String?             // Paper abstract
   researchType      String?             // System/Experiment/Survey/Framework
   domain            String?             // PM/LLM/RAG/etc
   problemStatement  String?
@@ -88,6 +90,25 @@ model SlrStudy {
   status            String              @default("TO_READ") // TO_READ/READING/EXTRACTED/INCLUDED/EXCLUDED
   exclusionReason   String?
   relevanceScore    Int?                // 1..5 optional
+  
+  // Quality Assessment (Q1-Q8, each 0-2)
+  qaQ1              Int?                @default(0)
+  qaQ2              Int?                @default(0)
+  qaQ3              Int?                @default(0)
+  qaQ4              Int?                @default(0)
+  qaQ5              Int?                @default(0)
+  qaQ6              Int?                @default(0)
+  qaQ7              Int?                @default(0)
+  qaQ8              Int?                @default(0)
+  qaNotes           String?
+  qaTotal           Int?                @default(0)
+  
+  // Research Context
+  comparisonBaseline String?            // manual/template/NLP classic/other model
+  ambiguityType      String?            // lexical/syntactic/semantic/pragmatic/requirement smells
+  qualityFramework   String?            // INVEST/verifiable/completeness/etc
+  studyContext       String?            // industry/academic/tool/dataset
+  
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
   qualityScores     StudyQualityScore[]
