@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { indexStudy, removeStudyFromIndex } from "@/lib/vector-search"
 
 export async function getStudies(projectId: string, filters?: {
     search?: string,
@@ -120,10 +121,26 @@ export async function updateStudy(id: string, projectId: string, formData: FormD
             return { success: false, error: "Exclusion reason is required when status is EXCLUDED" }
         }
 
-        await prisma.slrStudy.update({
+        const updatedStudy = await prisma.slrStudy.update({
             where: { id },
             data
         })
+
+        // Auto-index if status is INCLUDED
+        if (updatedStudy.status === "INCLUDED") {
+            try {
+                await indexStudy(updatedStudy)
+            } catch (indexError) {
+                console.error("Failed to index study (non-blocking):", indexError)
+            }
+        } else if (updatedStudy.status === "EXCLUDED" && updatedStudy.embeddingId) {
+            // Remove from index if excluded
+            try {
+                await removeStudyFromIndex(projectId, id)
+            } catch (indexError) {
+                console.error("Failed to remove study from index (non-blocking):", indexError)
+            }
+        }
 
         revalidatePath(`/projects/${projectId}`)
         return { success: true }
@@ -150,10 +167,26 @@ export async function updateStudyStatus(id: string, projectId: string, status: s
             return { success: false, error: "Exclusion reason is required" }
         }
 
-        await prisma.slrStudy.update({
+        const updatedStudy = await prisma.slrStudy.update({
             where: { id },
             data: { status, exclusionReason }
         })
+
+        // Auto-index if status changed to INCLUDED
+        if (status === "INCLUDED") {
+            try {
+                await indexStudy(updatedStudy)
+            } catch (indexError) {
+                console.error("Failed to index study (non-blocking):", indexError)
+            }
+        } else if (status === "EXCLUDED" && updatedStudy.embeddingId) {
+            // Remove from index if excluded
+            try {
+                await removeStudyFromIndex(projectId, id)
+            } catch (indexError) {
+                console.error("Failed to remove study from index (non-blocking):", indexError)
+            }
+        }
 
         revalidatePath(`/projects/${projectId}`)
         return { success: true }

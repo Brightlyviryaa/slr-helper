@@ -111,8 +111,44 @@ model SlrStudy {
   
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+  
+  // Vector embedding reference
+  embeddingId       String?             // Reference to LanceDB vector ID
+  embeddedAt        DateTime?           // When the study was last embedded
+  
   qualityScores     StudyQualityScore[]
   tags              StudyTag[]
+  documents         StudyDocument[]
+}
+
+model StudyDocument {
+  id          String          @id @default(cuid())
+  studyId     String
+  study       SlrStudy        @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  fileName    String          // Original filename
+  filePath    String          // Relative path from public/
+  fileSize    Int             // Size in bytes
+  mimeType    String          // application/pdf
+  pageCount   Int?            // Number of pages
+  uploadedAt  DateTime        @default(now())
+  processedAt DateTime?       // When chunking completed
+  chunks      DocumentChunk[]
+}
+
+model DocumentChunk {
+  id           String        @id @default(cuid())
+  documentId   String
+  document     StudyDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex   Int           // 0-based chunk order
+  content      String        // Text content of chunk
+  tokenCount   Int           // Actual token count
+  pageStart    Int?          // Starting page number
+  pageEnd      Int?          // Ending page number
+  embeddingId  String?       // Reference to LanceDB vector ID
+  embeddedAt   DateTime?     // When embedded
+  createdAt    DateTime      @default(now())
+
+  @@index([documentId, chunkIndex])
 }
 
 model QualityCriterion {

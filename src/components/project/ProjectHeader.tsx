@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Download, Edit3, Plus } from "lucide-react"
+import { Download, Edit3, Plus, RefreshCw } from "lucide-react"
 
 interface ProjectHeaderProps {
     title: string
@@ -10,6 +10,8 @@ interface ProjectHeaderProps {
     onEditProtocol: () => void
     onAddStudy: () => void
     onExport: () => void
+    onReindex: () => void
+    isReindexing?: boolean
 }
 
 export function ProjectHeader({
@@ -18,7 +20,9 @@ export function ProjectHeader({
     studyCount,
     onEditProtocol,
     onAddStudy,
-    onExport
+    onExport,
+    onReindex,
+    isReindexing = false
 }: ProjectHeaderProps) {
     return (
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
@@ -35,6 +39,16 @@ export function ProjectHeader({
                 <Button variant="outline" size="sm" onClick={onEditProtocol} className="gap-2">
                     <Edit3 size={16} />
                     Edit Protocol
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onReindex}
+                    className="gap-2"
+                    disabled={isReindexing}
+                >
+                    <RefreshCw size={16} className={isReindexing ? "animate-spin" : ""} />
+                    {isReindexing ? "Indexing..." : "Re-index"}
                 </Button>
                 <Button variant="outline" size="sm" onClick={onExport} className="gap-2">
                     <Download size={16} />

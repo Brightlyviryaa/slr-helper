@@ -1,9 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { LayoutDashboard, Settings, Menu, BookOpen } from "lucide-react"
-import { cn } from "@/lib/utils"
-// import { Button } from "@/components/ui/button" // Keeping it clean for now
+import { LayoutDashboard, Settings, Database, Box } from "lucide-react"
 
 export function Sidebar() {
     return (
@@ -22,7 +20,30 @@ export function Sidebar() {
                         </span>
                     </Link>
 
-                    {/* Placeholder for future links */}
+                    <Link
+                        href="/database"
+                        className="flex items-center gap-3 rounded-md p-2 text-slate-900 hover:bg-slate-100 font-medium"
+                    >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                            <Database size={20} />
+                        </div>
+                        <span className="opacity-0 transition-opacity duration-300 group-hover:opacity-100 whitespace-nowrap">
+                            Database
+                        </span>
+                    </Link>
+
+                    <Link
+                        href="/vectors"
+                        className="flex items-center gap-3 rounded-md p-2 text-slate-900 hover:bg-slate-100 font-medium"
+                    >
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center">
+                            <Box size={20} />
+                        </div>
+                        <span className="opacity-0 transition-opacity duration-300 group-hover:opacity-100 whitespace-nowrap">
+                            Vectors
+                        </span>
+                    </Link>
+
                     <button
                         disabled
                         className="flex w-full items-center gap-3 rounded-md p-2 text-slate-600 hover:bg-slate-50 cursor-not-allowed"

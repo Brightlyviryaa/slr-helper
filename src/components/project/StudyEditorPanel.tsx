@@ -1,13 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { X, Save, Loader2, ChevronDown, ChevronRight, Upload, Brain, FileText, AlertCircle } from "lucide-react"
+import { X, Save, Loader2, ChevronDown, ChevronRight, Upload, Brain, FileText, AlertCircle, ExternalLink, Database } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { updateStudy } from "@/actions/study"
 import { analyzePdfWithAi, StudyAnalysisData } from "@/actions/ai-analysis"
+import { uploadAndProcessDocument, getStudyDocumentStatus, deleteStudyDocument, reprocessDocumentEmbeddings } from "@/actions/document"
 import { cn } from "@/lib/utils"
 
 interface StudyEditorPanelProps {
@@ -54,14 +55,81 @@ export function StudyEditorPanel({ isOpen, onClose, study, projectId, protocol }
     const [expandAllSections, setExpandAllSections] = React.useState(false)
     const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-    // Reset AI state when panel closes or study changes
+    // Document-only upload state
+    const [isUploadingDoc, setIsUploadingDoc] = React.useState(false)
+    const docFileInputRef = React.useRef<HTMLInputElement>(null)
+
+    // Re-indexing state
+    const [isResetting, setIsResetting] = React.useState(false)
+    const [isReprocessing, setIsReprocessing] = React.useState(false)
+
+    // Document status state
+    const [docStatus, setDocStatus] = React.useState<{
+        hasDocument: boolean
+        document: { id: string; fileName: string; filePath: string; fileSize: number; pageCount: number | null; processedAt: Date | null } | null
+        totalChunks: number
+        embeddedChunks: number
+    } | null>(null)
+
+    // Fetch document status when study changes
+    React.useEffect(() => {
+        if (study?.id) {
+            getStudyDocumentStatus(study.id).then(result => {
+                if (result.success) {
+                    setDocStatus({
+                        hasDocument: result.hasDocument,
+                        document: result.document,
+                        totalChunks: result.totalChunks,
+                        embeddedChunks: result.embeddedChunks,
+                    })
+                }
+            })
+        }
+    }, [study?.id])
+
+    // Reset state when panel closes or study changes
     React.useEffect(() => {
         if (!isOpen) {
             setPdfFile(null)
             setAiReasoning(null)
             setAiError(null)
+            setDocStatus(null)
+            setIsUploadingDoc(false)
         }
     }, [isOpen, study?.id])
+
+    // Handler for document-only upload (chunking without AI analysis)
+    async function handleDocumentOnlyUpload(file: File) {
+        setIsUploadingDoc(true)
+        try {
+            const buffer = await file.arrayBuffer()
+            const base64 = Buffer.from(buffer).toString("base64")
+
+            const result = await uploadAndProcessDocument(
+                study.id,
+                projectId,
+                base64,
+                file.name
+            )
+
+            if (result.success) {
+                // Refresh document status
+                const statusResult = await getStudyDocumentStatus(study.id)
+                if (statusResult.success) {
+                    setDocStatus({
+                        hasDocument: statusResult.hasDocument,
+                        document: statusResult.document,
+                        totalChunks: statusResult.totalChunks,
+                        embeddedChunks: statusResult.embeddedChunks,
+                    })
+                }
+            }
+        } catch (err) {
+            console.error("Document upload failed:", err)
+        } finally {
+            setIsUploadingDoc(false)
+        }
+    }
 
     if (!study) return null
 
@@ -118,6 +186,18 @@ export function StudyEditorPanel({ isOpen, onClose, study, projectId, protocol }
                 // Auto-fill form fields
                 fillFormWithAiData(result.data)
                 setAiReasoning(result.data.reasoning)
+
+                // Save PDF and trigger chunking in background
+                try {
+                    await uploadAndProcessDocument(
+                        study.id,
+                        projectId,
+                        base64,  // Pass base64 string instead of buffer
+                        pdfFile.name
+                    )
+                } catch (uploadErr) {
+                    console.error("Failed to save PDF (non-blocking):", uploadErr)
+                }
             } else {
                 setAiError(result.error || "Failed to analyze PDF")
             }
@@ -246,8 +326,9 @@ export function StudyEditorPanel({ isOpen, onClose, study, projectId, protocol }
                         </Button>
                     </div>
 
-                    {/* Form */}
+                    {/* Form - key forces re-render when study changes */}
                     <form
+                        key={study.id}
                         ref={formRef}
                         onSubmit={handleSubmit}
                         className="flex-1 overflow-y-auto p-6 space-y-2"
@@ -256,6 +337,219 @@ export function StudyEditorPanel({ isOpen, onClose, study, projectId, protocol }
                             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-md mb-4">
                                 {error}
                             </div>
+                        )}
+
+                        {/* Document Status */}
+                        {docStatus && (
+                            <section className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <Database size={18} className="text-slate-600" />
+                                        <h3 className="font-semibold text-slate-800">Document Status</h3>
+                                    </div>
+                                    {docStatus.hasDocument ? (
+                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-emerald-100 text-emerald-700">
+                                            Indexed ✓
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 py-1 text-[10px] font-bold uppercase rounded bg-slate-200 text-slate-600">
+                                            Not Indexed
+                                        </span>
+                                    )}
+                                </div>
+
+                                {docStatus.hasDocument && docStatus.document ? (
+                                    <div className="space-y-3">
+                                        {/* File info & Open button */}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 text-sm text-slate-700">
+                                                <FileText size={14} />
+                                                <span className="truncate max-w-[200px]">{docStatus.document.fileName}</span>
+                                            </div>
+                                            <a
+                                                href={`/${docStatus.document.filePath}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                                            >
+                                                <ExternalLink size={12} />
+                                                Open Document
+                                            </a>
+                                        </div>
+
+                                        {/* Stats */}
+                                        <div className="flex items-center gap-4 text-xs text-slate-600">
+                                            <span>
+                                                <strong className="text-slate-800">{docStatus.embeddedChunks}</strong>/{docStatus.totalChunks} chunks embedded
+                                            </span>
+                                            {docStatus.document.pageCount && (
+                                                <span>
+                                                    <strong className="text-slate-800">{docStatus.document.pageCount}</strong> pages
+                                                </span>
+                                            )}
+                                            <span>
+                                                <strong className="text-slate-800">{(docStatus.document.fileSize / 1024 / 1024).toFixed(2)}</strong> MB
+                                            </span>
+                                        </div>
+
+                                        {/* Delete button - always visible for indexed documents */}
+                                        {docStatus.embeddedChunks === docStatus.totalChunks && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                disabled={isResetting}
+                                                onClick={async () => {
+                                                    if (!docStatus.document) return
+                                                    if (!confirm("This will delete the PDF file and all chunks. You will need to re-upload. Continue?")) return
+                                                    setIsResetting(true)
+                                                    try {
+                                                        const result = await deleteStudyDocument(docStatus.document.id, projectId)
+                                                        if (result.success) {
+                                                            setDocStatus({
+                                                                hasDocument: false,
+                                                                document: null,
+                                                                totalChunks: 0,
+                                                                embeddedChunks: 0,
+                                                            })
+                                                        }
+                                                    } catch (err) {
+                                                        console.error("Delete failed:", err)
+                                                    } finally {
+                                                        setIsResetting(false)
+                                                    }
+                                                }}
+                                                className="text-xs text-slate-500 hover:text-red-600 mt-2"
+                                            >
+                                                {isResetting ? "Deleting..." : "🗑️ Delete Document"}
+                                            </Button>
+                                        )}
+
+                                        {/* Processing status or stuck state */}
+                                        {docStatus.totalChunks > 0 && docStatus.embeddedChunks < docStatus.totalChunks && (
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 p-2 rounded">
+                                                    <Loader2 size={12} className="animate-spin" />
+                                                    <span>Embedding in progress... ({docStatus.embeddedChunks}/{docStatus.totalChunks})</span>
+                                                </div>
+                                                {/* Re-index button for stuck embeddings */}
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={isReprocessing || isResetting}
+                                                        onClick={async () => {
+                                                            if (!docStatus.document) return
+                                                            setIsReprocessing(true)
+                                                            try {
+                                                                const result = await reprocessDocumentEmbeddings(docStatus.document.id, projectId)
+                                                                if (result.success) {
+                                                                    const statusResult = await getStudyDocumentStatus(study.id)
+                                                                    if (statusResult.success) {
+                                                                        setDocStatus({
+                                                                            hasDocument: statusResult.hasDocument,
+                                                                            document: statusResult.document,
+                                                                            totalChunks: statusResult.totalChunks,
+                                                                            embeddedChunks: statusResult.embeddedChunks,
+                                                                        })
+                                                                    }
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Re-index failed:", err)
+                                                            } finally {
+                                                                setIsReprocessing(false)
+                                                            }
+                                                        }}
+                                                        className="text-xs gap-1"
+                                                    >
+                                                        {isReprocessing ? (
+                                                            <><Loader2 size={12} className="animate-spin" /> Re-indexing...</>
+                                                        ) : (
+                                                            <>🔄 Re-index</>
+                                                        )}
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        disabled={isReprocessing || isResetting}
+                                                        onClick={async () => {
+                                                            if (!docStatus.document) return
+                                                            if (!confirm("This will delete the PDF file and all chunks. You will need to re-upload. Continue?")) return
+                                                            setIsResetting(true)
+                                                            try {
+                                                                const result = await deleteStudyDocument(docStatus.document.id, projectId)
+                                                                if (result.success) {
+                                                                    // Clear local state - document is now gone
+                                                                    setDocStatus({
+                                                                        hasDocument: false,
+                                                                        document: null,
+                                                                        totalChunks: 0,
+                                                                        embeddedChunks: 0,
+                                                                    })
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Delete failed:", err)
+                                                            } finally {
+                                                                setIsResetting(false)
+                                                            }
+                                                        }}
+                                                        className="text-xs text-slate-500 hover:text-red-600"
+                                                    >
+                                                        {isResetting ? "Deleting..." : "🗑️ Delete Document"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {/* Upload zone for chunking only */}
+                                        <div
+                                            onDrop={(e) => {
+                                                e.preventDefault()
+                                                const file = e.dataTransfer.files[0]
+                                                if (file?.type === "application/pdf") {
+                                                    handleDocumentOnlyUpload(file)
+                                                }
+                                            }}
+                                            onDragOver={(e) => e.preventDefault()}
+                                            onClick={() => docFileInputRef.current?.click()}
+                                            className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-colors"
+                                        >
+                                            <input
+                                                ref={docFileInputRef}
+                                                type="file"
+                                                accept=".pdf"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0]
+                                                    if (file?.type === "application/pdf") {
+                                                        handleDocumentOnlyUpload(file)
+                                                    }
+                                                }}
+                                                className="hidden"
+                                            />
+                                            {isUploadingDoc ? (
+                                                <div className="flex items-center justify-center gap-2 text-slate-600">
+                                                    <Loader2 size={16} className="animate-spin" />
+                                                    <span className="text-sm">Uploading & indexing...</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <Upload className="mx-auto h-6 w-6 text-slate-400" />
+                                                    <p className="mt-1 text-xs text-slate-600">
+                                                        Drag & drop PDF or <span className="font-semibold text-indigo-600">browse</span>
+                                                    </p>
+                                                    <p className="text-[10px] text-slate-400 mt-1">
+                                                        Document will be chunked & indexed for search
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
                         )}
 
                         {/* AI Analysis Mode */}

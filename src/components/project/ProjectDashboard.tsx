@@ -8,6 +8,7 @@ import { StudyEditorPanel } from "./StudyEditorPanel"
 import { ProtocolEditor } from "./ProtocolEditor"
 import { PromptBuilderPanel } from "./PromptBuilderPanel"
 import { deleteStudy, exportStudiesCSV } from "@/actions/study"
+import { reindexProjectStudies } from "@/actions/vector"
 
 interface ProjectDashboardProps {
     project: any
@@ -20,6 +21,7 @@ export function ProjectDashboard({ project, studies }: ProjectDashboardProps) {
     const [isProtocolOpen, setIsProtocolOpen] = React.useState(false)
     const [selectedStudy, setSelectedStudy] = React.useState<any>(null)
     const [isExporting, setIsExporting] = React.useState(false)
+    const [isReindexing, setIsReindexing] = React.useState(false)
 
     const handleEditProtocol = () => {
         setIsProtocolOpen(true)
@@ -65,6 +67,26 @@ export function ProjectDashboard({ project, studies }: ProjectDashboardProps) {
         await deleteStudy(id, project.id)
     }
 
+    const handleReindex = async () => {
+        if (isReindexing) return
+
+        setIsReindexing(true)
+        try {
+            const result = await reindexProjectStudies(project.id)
+
+            if (result.success) {
+                alert(`Successfully indexed ${result.indexed} of ${result.total} INCLUDED studies.${(result.errors ?? 0) > 0 ? ` (${result.errors} errors)` : ''}`)
+            } else {
+                alert(result.error || "Failed to re-index studies.")
+            }
+        } catch (error) {
+            console.error("Reindex error:", error)
+            alert("An error occurred while re-indexing studies.")
+        } finally {
+            setIsReindexing(false)
+        }
+    }
+
     return (
         <div className="p-8 h-full flex flex-col">
             <ProjectHeader
@@ -74,6 +96,8 @@ export function ProjectDashboard({ project, studies }: ProjectDashboardProps) {
                 onEditProtocol={handleEditProtocol}
                 onAddStudy={handleAddStudy}
                 onExport={handleExport}
+                onReindex={handleReindex}
+                isReindexing={isReindexing}
             />
 
             <div className="flex-1 min-h-0">

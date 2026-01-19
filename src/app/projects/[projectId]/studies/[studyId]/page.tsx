@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, ExternalLink, FileText, Calendar, Users, Tag, BookOpen } from "lucide-react"
+import { ChevronLeft, ExternalLink, FileText, Calendar, Users, Tag, BookOpen, Database } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 
@@ -78,6 +78,27 @@ export default async function StudyDetailPage({ params }: StudyDetailPageProps) 
     if (!study) {
         notFound()
     }
+
+    // Fetch document status
+    const document = await prisma.studyDocument.findFirst({
+        where: { studyId },
+        include: {
+            chunks: {
+                select: { id: true, embeddingId: true }
+            }
+        },
+        orderBy: { uploadedAt: "desc" }
+    })
+
+    const docStatus = document ? {
+        hasDocument: true,
+        fileName: document.fileName,
+        filePath: document.filePath,
+        fileSize: document.fileSize,
+        pageCount: document.pageCount,
+        totalChunks: document.chunks.length,
+        embeddedChunks: document.chunks.filter(c => c.embeddingId != null).length,
+    } : null
 
     const qaTotal = (study.qaQ1 || 0) + (study.qaQ2 || 0) + (study.qaQ3 || 0) + (study.qaQ4 || 0) +
         (study.qaQ5 || 0) + (study.qaQ6 || 0) + (study.qaQ7 || 0) + (study.qaQ8 || 0)
@@ -172,6 +193,69 @@ export default async function StudyDetailPage({ params }: StudyDetailPageProps) 
                         )}
                     </div>
                 )}
+
+                {/* Document Status */}
+                <Section title="Document Status">
+                    {docStatus ? (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <Database size={20} className="text-slate-500" />
+                                    <div>
+                                        <p className="font-medium text-slate-800">{docStatus.fileName}</p>
+                                        <p className="text-sm text-slate-500">
+                                            {(docStatus.fileSize / 1024 / 1024).toFixed(2)} MB
+                                            {docStatus.pageCount && ` • ${docStatus.pageCount} pages`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="px-2 py-1 text-xs font-bold uppercase rounded bg-emerald-100 text-emerald-700">
+                                        Indexed ✓
+                                    </span>
+                                    <a
+                                        href={`/${docStatus.filePath}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition-colors text-sm font-medium"
+                                    >
+                                        <ExternalLink size={14} />
+                                        Open Document
+                                    </a>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-3 border-t border-slate-100">
+                                <div>
+                                    <p className="text-xs font-semibold text-slate-500 uppercase">Total Chunks</p>
+                                    <p className="text-lg font-bold text-slate-800">{docStatus.totalChunks}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-slate-500 uppercase">Embedded</p>
+                                    <p className="text-lg font-bold text-slate-800">
+                                        {docStatus.embeddedChunks} / {docStatus.totalChunks}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-slate-500 uppercase">Status</p>
+                                    <p className={`text-lg font-bold ${docStatus.embeddedChunks === docStatus.totalChunks ? "text-emerald-600" : "text-amber-600"}`}>
+                                        {docStatus.embeddedChunks === docStatus.totalChunks ? "Complete" : "Processing..."}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-3 text-slate-500">
+                            <Database size={20} />
+                            <div>
+                                <p className="font-medium">No document uploaded</p>
+                                <p className="text-sm">Upload a PDF in the edit panel to index this study.</p>
+                            </div>
+                            <span className="ml-auto px-2 py-1 text-xs font-bold uppercase rounded bg-slate-200 text-slate-600">
+                                Not Indexed
+                            </span>
+                        </div>
+                    )}
+                </Section>
 
                 {/* Abstract */}
                 {study.abstract && (

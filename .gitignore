@@ -44,3 +44,9 @@ next-env.d.ts
 /src/generated/prisma
 /prisma/*.db
 /prisma/*.db-journal
+
+# Vector database
+/data
+
+# Uploaded files
+/public/uploads
